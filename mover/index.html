@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+    <main id="root"></main>
+</body>
+
+<!-- This setup is not suitable for production. -->
+<!-- Only use it in development! -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script async src="https://ga.jspm.io/npm:es-module-shims@1.7.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react?dev",
+    "react-dom/client": "https://esm.sh/react-dom/client?dev"
+  }
+}
+</script>
+
+<script type="text/babel" data-type="module">
+import React, { useState, useEffect, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+const fs = require('fs').promises;
+const path = require('path');
+
+let App = function MyApp() {
+    return (
+        <div>
+            <p id="stats" style={{ color: 'white' }}></p>
+            <button id="button-move">Move</button>
+        </div>
+    );
+}
+
+const root = createRoot(document.getElementById('root'));
+root.render(
+    <StrictMode>
+        <App />
+    </StrictMode>
+);
+
+eagle.onPluginCreate(async (_) => {
+	const items = await eagle.item.getSelected();
+
+	/* Source: https://stackoverflow.com/a/39906526 */
+	function niceBytes(a){let b=0,c=parseInt(a,10)||0;for(;1024<=c&&++b;)c/=1024;return c.toFixed(10>c&&0<b?1:0)+" "+["bytes","KB","MB","GB","TB","PB","EB","ZB","YB"][b]};
+	const sum = items.reduce((acc, i) => acc + parseInt(i.size), 0);
+	document.getElementById('stats').innerText = `${items.length} item(s) (${niceBytes(sum)})`;
+
+	document.getElementById('button-move').addEventListener('click', async () => {
+		// Currently only migrating into this library, so let's hardcode the path.
+        const destPath = "D:\\Graph.library\\images";
+
+        // Which means no need to check if the destination directory exists.
+        // try {
+		// 	await fs.access(destPath, fs.constants.F_OK);
+		// } catch (_) {
+		// 	await fs.mkdir(destPath, { recursive: true });
+		// }
+
+        for (const item of items) {
+			// Remove all `folders` to prevent missing items after migrated.
+			item.folders = [];
+			await item.save();
+
+			const targetDirPath = item.filePath.substring(0, item.filePath.lastIndexOf(path.sep));
+			try {
+				await fs.rename(targetDirPath, path.join(destPath, path.basename(targetDirPath)));
+				console.log(`▸ Folder ${targetDirPath} has migrated to ${destPath}`);
+			} catch (err) {
+                console.error(`Error migrating folder ${targetDirPath}: ${err}`);
+			}
+		}
+	});
+});
+</script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+
+</style>
+
+</html>

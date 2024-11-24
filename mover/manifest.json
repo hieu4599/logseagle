@@ -1,0 +1,15 @@
+{
+    "id": "a69ea172-ead1-44b6-9d9d-6ba67f71d205",
+    "version": "0.0.0",
+    "platform": "all",
+    "arch": "all",
+    "name": "Mover",
+    "logo": "/logo.png",
+    "keywords": [],
+    "devTools": false,
+    "main": {
+        "url": "index.html",
+        "width": 640,
+        "height": 480
+    }
+}
