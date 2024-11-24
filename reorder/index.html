@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+    <main id="root"></main>
+</body>
+
+<!-- This setup is not suitable for production. -->
+<!-- Only use it in development! -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script async src="https://ga.jspm.io/npm:es-module-shims@1.7.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react?dev",
+    "react-dom/client": "https://esm.sh/react-dom/client?dev"
+  }
+}
+</script>
+
+<script type="text/babel" data-type="module">
+import React, { useState, useEffect, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+const fs = require('fs').promises;
+
+const Reorder = () => {
+    return (
+        <>
+            <div style={{ alignItems: 'center' }}>
+                <img className="source" />
+                <div id="range-cmp" style={{ height: '1rem' }}>
+                    <label htmlFor="quantity" style={{ color: 'white' }}>Range (ms) </label>
+                    <input type="number" defaultValue="60000" id="range" name="range" style={{ width: '4rem' }} />
+                </div>
+                <div>
+                    <input type="datetime-local" name="datetime" id="datetime" style={{ height: '1rem' }} />
+                    <input type="checkbox" id="switch-tt" style={{ display: 'block' }} />
+                    <label htmlFor="switch-tt" style={{ color: 'white' }}>All?</label>
+                </div>
+            </div>
+            <ul className="targets"></ul>
+            <div>
+                <button id="button-reorder">Reorder</button>
+                <input type="checkbox" checked={true} id="switch-order" className="checkbox" />
+                <label htmlFor="switch-order" className="toggle" id="toggle-order">
+                    <p>BEFORE</p>
+                </label>
+            </div>
+        </>
+    );
+}
+
+let App = function MyApp() {
+    return (
+        <Reorder />
+    );
+}
+
+const root = createRoot(document.getElementById('root'));
+root.render(
+    <StrictMode>
+        <App />
+    </StrictMode>
+);
+
+let source;
+let datetime;
+
+eagle.onPluginCreate(async (_) => {
+	source = (await eagle.item.getSelected())[0];
+
+	Array.from(document.getElementsByClassName("source")).forEach((imgEl) => {
+		imgEl.src = source.thumbnailURL;
+	});
+
+	const datetimeCmp = document.getElementById("range-cmp");
+	const datetimeEl = document.getElementById("datetime");
+	datetimeEl.onchange = function() {
+		datetimeCmp.previousElementSibling.style.webkitFilter = "blur(16px)";
+		datetime = Date.parse(datetimeEl.value);
+	}
+});
+
+eagle.onPluginShow(async () => {
+	// Show error but cause no harm, however, here's a quick fix:
+	if (source === undefined) return;
+	const targets = await eagle.item.getSelected();
+
+	Array.from(document.getElementsByClassName("targets")).forEach((ulEl) => {
+		ulEl.innerHTML = targets.map(target => {
+			return `<li><img src="${target.thumbnailURL}"></li>`;
+		}).join('');
+	});
+
+	const orderSwitcher = document.getElementById('switch-order');
+	const orderToggler = document.getElementById('toggle-order');
+
+	orderSwitcher.addEventListener('click', () => {
+		if (orderSwitcher.checked === false) {
+			orderToggler.getElementsByTagName('p')[0].innerText = "AFTER";
+			orderSwitcher.checked === true;
+			return;
+		}
+
+		orderSwitcher.checked === false;
+		orderToggler.getElementsByTagName('p')[0].innerText = "BEFORE";
+	});
+
+	async function reorder(datetime, range, isAfter) {
+		const sourceData = JSON.parse(await fs.readFile(source.metadataFilePath, 'utf8'));
+
+		for (const [idx, target] of targets.entries()) {
+			const targetData = JSON.parse(await fs.readFile(target.metadataFilePath, 'utf8'));
+
+			targetData.modificationTime = (!datetime ? sourceData.modificationTime : datetime) + ((!datetime ? idx+1 : idx) * (isAfter ? range : -range));
+            targetData.lastModified = (!datetime ? sourceData.lastModified : datetime) + ((!datetime ? idx+1 : idx) * (isAfter ? range : -range));
+			if (document.getElementById('switch-tt').checked) {
+				targetData.btime = targetData.modificationTime; // (!datetime ? sourceData.btime : datetime) + (index * (isAfter ? : ));
+            	targetData.mtime = targetData.modificationTime; // (!datetime ? sourceData.mtime : datetime) + (index * (isAfter ? : ));
+			}
+			
+			// FIXME: Will this: https://stackoverflow.com/a/23372028 works?
+			targetData["order"] = [];
+
+			// Indicate the target has been REORDERED.
+			targetData.tags = targetData.tags.concat('.R⏫');
+
+			await fs.writeFile(target.metadataFilePath, JSON.stringify(targetData, null, 2));
+		}
+	}
+
+	document.getElementById('button-reorder').addEventListener('click', async () => {
+		const range = parseInt(document.getElementById("range").value);
+		await reorder(datetime, range, orderSwitcher.checked);
+	});
+});
+</script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+div {
+    display: flex;
+    justify-content: space-between;
+}
+
+img {
+    width: 192px;
+    height: 192px;
+}
+
+.source {
+    border: 2px solid greenyellow;
+    border-radius: 8px;
+}
+
+ul {
+    display: flex;
+    flex-wrap: wrap;
+    list-style-type: none;
+    padding: 0;
+}
+
+li {
+    margin-right: 10px;
+}
+
+li img {
+    width: 84px;
+    height: 84px;
+    border-radius: 4px;
+}
+
+.toggle {
+    position: relative;
+    display: inline-block;
+    width: 80px;
+    height: 24px;
+    background-color: purple;
+    border-radius: 16px;
+    border: 2px solid gray;
+}
+
+.toggle:after {
+    content: '';
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: gray;
+    top: 0px;
+    left: 1px;
+    transition: all 0.5s;
+}
+
+.checkbox {
+    display: none;
+}
+
+.checkbox:checked+.toggle p {
+    text-align: start;
+}
+
+.checkbox:checked+.toggle::after {
+    left: 55px;
+}
+
+.checkbox:checked+.toggle {
+    background-color: orange;
+}
+
+p {
+    color: white;
+    margin: 4px;
+    font-size: 0.9em;
+    text-align: end;
+}
+</style>
+
+</html>
